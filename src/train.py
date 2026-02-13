@@ -56,12 +56,22 @@ print(f"R2 Score: {r2}")
 model_path = os.path.join(MODELS_DIR, "model.pkl")
 joblib.dump(model, model_path)
 
-# Save results
+# Save results to app/artifacts/metrics.json as per Lab 6 requirements
+# artifacts are expected to be in app/artifacts relative to the workspace root
+# Since we run from root, we can specify the path directly
+ARTIFACTS_DIR = os.path.join(BASE_DIR, "app", "artifacts")
+os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+
 results = {
-    "MSE": mse,
-    "R2": r2
+    "accuracy": r2  # Lab 6 instructions call it "accuracy", using R2 as proxy or just calling it accuracy
 }
 
-results_path = os.path.join(MODELS_DIR, "results.json")
+# Note: The instructions mention "Read Accuracy - Extract accuracy value". 
+# Common regression metrics are MSE/R2. "Accuracy" usually implies classification. 
+# However, this is a regression problem (wine quality). 
+# I will save R2 as "accuracy" to satisfy the pipeline stage "Read Accuracy" which likely expects a key named "accuracy" or similar.
+# Or I can save both. Let's save "accuracy": r2 to be safe for the "Read Accuracy" stage compatibility.
+
+results_path = os.path.join(ARTIFACTS_DIR, "metrics.json")
 with open(results_path, "w") as f:
     json.dump(results, f, indent=4)
