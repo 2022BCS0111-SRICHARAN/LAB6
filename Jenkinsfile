@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent none 
 
     environment {
         DOCKER_IMAGE = 'my-python-app'
@@ -14,57 +14,43 @@ pipeline {
 
     stages {
         stage('Checkout') {
+            agent any
             steps {
                 // Stage 1: Checkout
                 checkout scm
             }
         }
 
-        stage('Setup Python Virtual Environment') {
+        stage('Model Training & Evaluation') {
+            agent {
+                docker { 
+                    image 'python:3.10' 
+                    // Mount the workspace so artifacts persist
+                    reuseNode true 
+                }
+            }
             steps {
                 // Stage 2: Setup Python Virtual Environment
-                sh '''
-                    python3 -m venv ${PYTHON_ENV}
-                    . ${PYTHON_ENV}/bin/activate
-                    pip install -r requirements.txt
-                '''
-            }
-        }
-
-        stage('Train Model') {
-            steps {
+                // Note: Inside python container, we might not need venv, but following lab steps.
+                // However, the container is ephemeral for this stage.
+                
+                sh 'pip install -r requirements.txt'
+                
                 // Stage 3: Train Model
-                sh '''
-                    . ${PYTHON_ENV}/bin/activate
-                    python src/train.py
-                '''
-            }
-        }
-
-        stage('Read Accuracy') {
-            steps {
+                sh 'python src/train.py'
+                
                 // Stage 4: Read Accuracy
                 script {
                     def metrics = readJSON file: 'app/artifacts/metrics.json'
                     env.CURRENT_ACCURACY = metrics.accuracy
                     echo "Current Accuracy: ${env.CURRENT_ACCURACY}"
                 }
-            }
-        }
-
-        stage('Compare Accuracy') {
-            steps {
+                
                 // Stage 5: Compare Accuracy
                 script {
-                    // Assuming BEST_ACCURACY_CRED contains a float value
-                    // If strictly following specific instructions for "best-accuracy" credential:
-                    // "Compare current accuracy with value stored in: best-accuracy"
-                    
                     def bestAcc = env.BEST_ACCURACY_CRED?.trim() ?: env.BASELINE_ACCURACY
                     echo "Best Accuracy (Baseline): ${bestAcc}"
                     
-                    // Simple string comparison or float comparison in Groovy
-                    // Using shell for reliable float comparison if needed, or groovy float parsing
                     def current = env.CURRENT_ACCURACY.toFloat()
                     def best = bestAcc.toFloat()
                     
@@ -75,36 +61,29 @@ pipeline {
                         env.MODEL_IMPROVED = 'false'
                         echo "New model is not better. (${current} <= ${best})"
                     }
+                    
+                    // Allow MODEL_IMPROVED to be visible in subsequent stages if possible.
+                    // Environment variables set within a stage/agent are usually local.
+                    // We might need to write to a file to persist the decision to the next stage 
+                    // or assume 'agent any' shares the same workspace variables if defined globally.
+                    // Actually, 'env.VAR' updates are propagated if not shadowed.
                 }
             }
         }
 
-        stage('Build Docker Image (Conditional)') {
+        stage('Docker Build & Push') {
+            agent any
             when {
-                environment name: 'MODEL_IMPROVED', value: 'true'
+                expression { return env.MODEL_IMPROVED == 'true' }
             }
             steps {
                 // Stage 6: Build Docker Image
-                // "Build Docker image only if the new model outperforms the stored baseline"
-                // Authenticate using: dockerhub-creds is implicitly handled if pushing, 
-                // but usually login is needed for push. Steps say "authenticate" here.
-                
                 sh 'echo "Building Docker Image..."'
-                // Build from root context using the deployment/Dockerfile
                 sh "docker build -f deployment/Dockerfile -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_IMAGE}:latest ."
-            }
-        }
-
-        stage('Push Docker Image (Conditional)') {
-            when {
-                environment name: 'MODEL_IMPROVED', value: 'true'
-            }
-            steps {
+                
                 // Stage 7: Push Docker Image
                 sh 'echo "Pushing Docker Image..."'
-                // Login to Docker Hub using credentials
                 sh 'echo $DOCKER_HUB_CREDS_PSW | docker login -u $DOCKER_HUB_CREDS_USR --password-stdin'
-                
                 sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
                 sh "docker push ${DOCKER_IMAGE}:latest"
             }
