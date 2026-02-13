@@ -113,9 +113,14 @@ pipeline {
 
     post {
         always {
-            // Task 5: Artifact Archiving
-            // "Regardless of build success or failure, Jenkins must archive: app/artifacts/**"
-            archiveArtifacts artifacts: 'app/artifacts/**', fingerprint: true
+            // Ensure we are in a node context for archiving
+            script {
+                // Task 5: Artifact Archiving
+                // "Regardless of build success or failure, Jenkins must archive: app/artifacts/**"
+                if (fileExists('app/artifacts')) {
+                    archiveArtifacts artifacts: 'app/artifacts/**', fingerprint: true
+                }
+            }
             
             // Clean up workspace to save space (optional but good practice)
             // cleanWs() 
