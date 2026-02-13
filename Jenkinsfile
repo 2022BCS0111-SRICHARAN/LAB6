@@ -79,13 +79,13 @@ pipeline {
             steps {
                 // Stage 6: Build Docker Image
                 sh 'echo "Building Docker Image..."'
-                sh "docker build -f deployment/Dockerfile -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_IMAGE}:latest ."
+                sh "docker build -f deployment/Dockerfile -t \$DOCKER_HUB_CREDS_USR/${DOCKER_IMAGE}:${DOCKER_TAG} -t \$DOCKER_HUB_CREDS_USR/${DOCKER_IMAGE}:latest ."
                 
                 // Stage 7: Push Docker Image
                 sh 'echo "Pushing Docker Image..."'
                 sh 'echo $DOCKER_HUB_CREDS_PSW | docker login -u $DOCKER_HUB_CREDS_USR --password-stdin'
-                sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                sh "docker push ${DOCKER_IMAGE}:latest"
+                sh "docker push \$DOCKER_HUB_CREDS_USR/${DOCKER_IMAGE}:${DOCKER_TAG}"
+                sh "docker push \$DOCKER_HUB_CREDS_USR/${DOCKER_IMAGE}:latest"
             }
         }
     }
